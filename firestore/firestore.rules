@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ユーザー認証の確認関数
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ゲームロビー関連のデータ
+    match /games/{gameId} {
+      // ゲーム情報の読み取りは全員可能
+      allow read: if true;
+      // ゲームの作成と更新は認証済みユーザーのみ可能
+      allow create, update: if isAuthenticated();
+      // ゲームの削除はホスト（作成者）のみ可能
+      allow delete: if isAuthenticated() && resource.data.hostId == request.auth.uid;
+      
+      // プレイヤー情報のサブコレクション
+      match /players/{playerId} {
+        // 読み取りは全員可能
+        allow read: if true;
+        // 書き込みは認証済みユーザーのみ可能
+        allow write: if isAuthenticated();
+      }
+      
+      // ゲームログのサブコレクション
+      match /logs/{logId} {
+        // 読み取りは全員可能
+        allow read: if true;
+        // 書き込みは認証済みユーザーのみ可能
+        allow write: if isAuthenticated();
+      }
+    }
+    
+    // ユーザープロフィール関連のデータ
+    match /users/{userId} {
+      // 読み取りは全員可能
+      allow read: if true;
+      // 書き込みは自分のデータのみ可能
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+  }
+}
