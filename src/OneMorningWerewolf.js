@@ -378,7 +378,9 @@ const OneMorningWerewolf = () => {
           });
           
           // 現在のプレイヤーを占い師に設定
-          setCurrentPlayerIndex(players.findIndex(p => p.role === 'seer'));
+          // 更新後のプレイヤーリストから占い師を検索
+          const seerIndex = updatedPlayers.findIndex(p => p.role === 'seer');
+          setCurrentPlayerIndex(seerIndex >= 0 ? seerIndex : 0);
         }
       }
     } catch (error) {
@@ -517,7 +519,10 @@ const OneMorningWerewolf = () => {
         });
         
         // 同数の場合はランダムに1人を選ぶ
-        const eliminatedId = eliminatedPlayers[Math.floor(Math.random() * eliminatedPlayers.length)];
+        let eliminatedId = null;
+        if (eliminatedPlayers.length > 0) {
+          eliminatedId = eliminatedPlayers[Math.floor(Math.random() * eliminatedPlayers.length)];
+        }
         
         // プレイヤーの状態を更新
         const updatedPlayers = gameData.players.map(player => {
@@ -528,15 +533,15 @@ const OneMorningWerewolf = () => {
         });
         
         // ゲーム結果の判定
-        const eliminatedPlayer = updatedPlayers.find(player => player.id === eliminatedId);
+        const eliminatedPlayer = eliminatedId ? updatedPlayers.find(player => player.id === eliminatedId) : null;
         const remainingWerewolves = updatedPlayers.filter(player => player.role === 'werewolf' && player.isAlive).length;
         const remainingVillagers = updatedPlayers.filter(player => player.role !== 'werewolf' && player.isAlive).length;
         
         let result = {
-          eliminatedPlayer: {
-            name: eliminatedPlayer ? eliminatedPlayer.name : '不明',
-            role: eliminatedPlayer ? eliminatedPlayer.role : '不明'
-          }
+          eliminatedPlayer: eliminatedPlayer ? {
+            name: eliminatedPlayer.name,
+            role: eliminatedPlayer.role
+          } : null
         };
         
         if (remainingWerewolves === 0) {
@@ -547,7 +552,12 @@ const OneMorningWerewolf = () => {
           result.message = '人狼陣営の勝利！人狼の数が村人以上になりました。';
         } else {
           result.winner = 'undecided';
-          result.message = `追放されたのは ${eliminatedPlayer ? eliminatedPlayer.name : '不明'} (${eliminatedPlayer ? (eliminatedPlayer.role === 'werewolf' ? '人狼' : eliminatedPlayer.role === 'villager' ? '村人' : '占い師') : '不明'}) でした。`;
+          if (eliminatedPlayer) {
+            const roleText = eliminatedPlayer.role === 'werewolf' ? '人狼' : eliminatedPlayer.role === 'villager' ? '村人' : '占い師';
+            result.message = `追放されたのは ${eliminatedPlayer.name} (${roleText}) でした。`;
+          } else {
+            result.message = '投票が行われませんでした。ゲームを続行します。';
+          }
         }
         
         await updateDoc(gameRef, {
@@ -723,6 +733,17 @@ const OneMorningWerewolf = () => {
               <li>村人: {roleDistribution[players.length]?.villager || 0}人</li>
               <li>占い師: {roleDistribution[players.length]?.seer || 0}人</li>
             </ul>
+            
+            <p className="mt-4 mb-2 text-sm">
+              <span className="font-bold">ゲーム開始条件:</span> 最低4人のプレイヤーが必要です
+            </p>
+            
+            <div className="bg-blue-50 p-3 rounded border border-blue-200 mb-4">
+              <p className="text-sm">
+                <span className="font-bold">部屋のID:</span> {gameId}
+              </p>
+              <p className="text-sm mt-1">他のプレイヤーに共有して参加してもらいましょう</p>
+            </div>
           </div>
         )}
         
@@ -733,7 +754,7 @@ const OneMorningWerewolf = () => {
               className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
               disabled={players.length < 4}
             >
-              ゲーム開始
+              ゲーム開始 {players.length < 4 && `(あと${4-players.length}人必要)`}
             </button>
           )}
           
@@ -744,6 +765,12 @@ const OneMorningWerewolf = () => {
             退出する
           </button>
         </div>
+        
+        {!isHost && (
+          <div className="mt-4 bg-yellow-50 p-3 rounded border border-yellow-200">
+            <p className="text-sm">ホストがゲームを開始するのをお待ちください</p>
+          </div>
+        )}
         
         {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
       </div>
@@ -920,32 +947,113 @@ const OneMorningWerewolf = () => {
 
   // 結果画面の表示
   const renderResult = () => {
+    // 勝者に応じた背景色を設定
+    let resultBgColor = "bg-gray-50";
+    let resultBorderColor = "border-gray-200";
+    let resultIcon = "❓";
+    
+    if (gameResult?.winner === 'villagers') {
+      resultBgColor = "bg-blue-50";
+      resultBorderColor = "border-blue-200";
+      resultIcon = "🏆";
+    } else if (gameResult?.winner === 'werewolves') {
+      resultBgColor = "bg-red-50";
+      resultBorderColor = "border-red-200";
+      resultIcon = "🐺";
+    }
+    
+    // 自分の勝敗判定
+    const myRole = myPlayer?.role || '';
+    let iWon = false;
+    
+    if (gameResult?.winner === 'villagers' && myRole !== 'werewolf') {
+      iWon = true;
+    } else if (gameResult?.winner === 'werewolves' && myRole === 'werewolf') {
+      iWon = true;
+    }
+    
     return (
       <div className="p-4 max-w-md mx-auto text-center">
         <h2 className="text-xl font-bold mb-4">ゲーム結果</h2>
         
-        <p className="text-lg mb-4">{gameResult?.message}</p>
+        <div className={`${resultBgColor} border ${resultBorderColor} rounded-lg p-4 mb-6 shadow-sm`}>
+          <div className="text-3xl mb-2">{resultIcon}</div>
+          <p className="text-lg font-bold mb-2">
+            {gameResult?.winner === 'villagers' 
+              ? '村人陣営の勝利！' 
+              : gameResult?.winner === 'werewolves' 
+                ? '人狼陣営の勝利！' 
+                : '勝敗未決'}
+          </p>
+          <p className="mb-2">{gameResult?.message}</p>
+          
+          {gameResult?.eliminatedPlayer && (
+            <p className="text-sm mt-2">
+              追放されたプレイヤー: 
+              <span className="font-medium ml-1">
+                {gameResult.eliminatedPlayer.name}
+                （{gameResult.eliminatedPlayer.role === 'werewolf' ? '人狼' : 
+                   gameResult.eliminatedPlayer.role === 'villager' ? '村人' : '占い師'}）
+              </span>
+            </p>
+          )}
+          
+          {iWon ? (
+            <p className="mt-4 bg-green-100 text-green-800 p-2 rounded inline-block">あなたの勝利です！</p>
+          ) : (
+            gameResult?.winner && <p className="mt-4 bg-red-100 text-red-800 p-2 rounded inline-block">あなたの敗北です</p>
+          )}
+        </div>
         
-        <div className="mb-4">
-          <h3 className="font-bold mb-2">プレイヤー役職:</h3>
-          <ul className="space-y-1">
-            {players.map((player, index) => (
-              <li key={index} className={player.isAlive ? "" : "line-through"}>
-                {player.name}: {player.role === 'werewolf' ? '人狼' : player.role === 'villager' ? '村人' : '占い師'}
-                {!player.isAlive && " (追放)"}
-              </li>
-            ))}
+        <div className="mb-6 bg-white rounded-lg border border-gray-200 p-4">
+          <h3 className="font-bold mb-3">プレイヤー役職:</h3>
+          <ul className="space-y-2 text-left">
+            {players.map((player, index) => {
+              let roleColor = "";
+              
+              if (player.role === "werewolf") {
+                roleColor = "text-red-600";
+              } else if (player.role === "seer") {
+                roleColor = "text-purple-600";
+              } else {
+                roleColor = "text-green-600";
+              }
+              
+              return (
+                <li key={index} className={`py-1 px-2 rounded ${index % 2 === 0 ? 'bg-gray-50' : ''} ${!player.isAlive ? 'opacity-50' : ''}`}>
+                  <div className="flex justify-between items-center">
+                    <span>
+                      {player.name} 
+                      {player.isHost && <span className="text-xs bg-yellow-100 ml-2 px-1 py-0.5 rounded">ホスト</span>}
+                      {!player.isAlive && <span className="text-xs bg-gray-100 ml-2 px-1 py-0.5 rounded">追放</span>}
+                    </span>
+                    <span className={`font-medium ${roleColor}`}>
+                      {player.role === 'werewolf' ? '人狼' : player.role === 'villager' ? '村人' : '占い師'}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
         
-        {isHost && (
+        <div className="flex space-x-2">
+          {isHost && (
+            <button
+              onClick={resetGame}
+              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
+            >
+              新しいゲームを始める
+            </button>
+          )}
+          
           <button
-            onClick={resetGame}
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
+            onClick={leaveGame}
+            className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded"
           >
-            新しいゲームを始める
+            ロビーに戻る
           </button>
-        )}
+        </div>
       </div>
     );
   };
