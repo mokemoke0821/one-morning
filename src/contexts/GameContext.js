@@ -35,17 +35,13 @@ export function GameProvider({ children }) {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [centerCards, setCenterCards] = useState([]);
   
-  // 役職リスト
+  // 役職リスト（4〜8人のプレイに最適化）
   const roleDistribution = {
     4: { werewolf: 1, villager: 1, seer: 1, guard: 1, medium: 0, fox: 0, exposer: 0, unknown: 0 },
     5: { werewolf: 1, villager: 2, seer: 1, guard: 1, medium: 0, fox: 0, exposer: 0, unknown: 0 },
-    6: { werewolf: 1, villager: 2, seer: 1, guard: 1, medium: 1, fox: 0, exposer: 0, unknown: 0 },
-    7: { werewolf: 2, villager: 2, seer: 1, guard: 1, medium: 1, fox: 0, exposer: 0, unknown: 0 },
-    8: { werewolf: 2, villager: 3, seer: 1, guard: 1, medium: 1, fox: 0, exposer: 0, unknown: 0 },
-    9: { werewolf: 2, villager: 3, seer: 1, guard: 1, medium: 1, fox: 1, exposer: 0, unknown: 0 },
-    10: { werewolf: 2, villager: 3, seer: 1, guard: 1, medium: 1, fox: 1, exposer: 1, unknown: 0 },
-    11: { werewolf: 3, villager: 3, seer: 1, guard: 1, medium: 1, fox: 1, exposer: 1, unknown: 0 },
-    12: { werewolf: 3, villager: 4, seer: 1, guard: 1, medium: 1, fox: 1, exposer: 1, unknown: 0 }
+    6: { werewolf: 1, villager: 3, seer: 1, guard: 1, medium: 0, fox: 0, exposer: 0, unknown: 0 },
+    7: { werewolf: 2, villager: 3, seer: 1, guard: 1, medium: 0, fox: 0, exposer: 0, unknown: 0 },
+    8: { werewolf: 2, villager: 3, seer: 1, guard: 1, medium: 1, fox: 0, exposer: 0, unknown: 0 }
   };
 
   // 役職情報
@@ -53,45 +49,45 @@ export function GameProvider({ children }) {
     werewolf: {
       name: 'おおかみ',
       team: 'werewolf',
-      description: '村人チームに紛れ、追放されないように振る舞います'
+      description: '村人チームに紛れ、追放されないように振る舞います。COの際は「おおかみ」「きつね」「関係ないやつら」から選べます'
     },
     villager: {
       name: 'むらびと',
       team: 'villager',
-      description: '正直に役職をCOして、人狼を見つけ出して追放しましょう'
+      description: '必ず正直に「むらびと」とCOして、人狼を見つけ出して追放しましょう'
     },
     seer: {
       name: 'うらないし',
       team: 'villager',
-      description: 'まだCOしていないプレイヤーのカードを1枚見ることができます',
+      description: '必ず正直に「うらないし」とCOし、まだCOしていないプレイヤーのカードを1枚見ることができます',
       ability: 'まだCOしていないプレイヤーのカードを確認'
     },
     guard: {
       name: 'ごえい',
       team: 'villager',
-      description: 'すでにCOしたプレイヤーのカードを1枚見ることができます',
+      description: '必ず正直に「ごえい」とCOし、すでにCOしたプレイヤーのカードを1枚見ることができます',
       ability: 'すでにCOしたプレイヤーのカードを確認'
     },
     medium: {
       name: 'れいばいし',
       team: 'villager',
-      description: '中央に置かれたカードを1枚見ることができます',
+      description: '必ず正直に「れいばいし」とCOし、中央に置かれたカードを1枚見ることができます',
       ability: '中央カードを1枚確認'
     },
     fox: {
       name: 'きつね',
       team: 'fox',
-      description: '占い師か護衛にカードを見られると即勝利。うまく騙りましょう'
+      description: 'うらないしかごえいにカードを見られると即敗北。COの際は「おおかみ」「きつね」「関係ないやつら」から選べます'
     },
     exposer: {
       name: 'ろしゅつきょう',
       team: 'exposer',
-      description: '占い師か護衛にカードを見られると見た人と同時勝利'
+      description: 'うらないしかごえいにカードを見られると見た人と同時勝利。COの際は「おおかみ」「きつね」「関係ないやつら」から選べます'
     },
     unknown: {
       name: 'みてはいけないもの',
       team: 'unknown',
-      description: '霊媒師に中央カードとして見られると全員敗北'
+      description: 'れいばいしに中央カードとして見られると議論終了・投票へ。特殊勝利条件なし'
     }
   };
 
@@ -213,27 +209,48 @@ export function GameProvider({ children }) {
           return false;
         }
         
-        // プレイヤーを追加
-        const updatedPlayers = [
-          ...gameData.players,
-          {
-            id: currentUser.uid,
-            name: playerName,
-            role: '',
-            roleClaim: '',
-            isAlive: true,
-            isHost: false,
-            hasUsedAbility: false
+        // このゲームのホストのIDを取得
+        const hostId = gameData.hostId;
+        
+        // ゲームに参加するためのカスタム関数
+        const joinGameFunction = async () => {
+          try {
+            // プレイヤーを追加
+            const updatedPlayers = [
+              ...gameData.players,
+              {
+                id: currentUser.uid,
+                name: playerName,
+                role: '',
+                roleClaim: '',
+                isAlive: true,
+                isHost: false,
+                hasUsedAbility: false
+              }
+            ];
+            
+            await updateDoc(gameRef, {
+              players: updatedPlayers
+            });
+            
+            setGameId(gameToJoin.id);
+            setIsHost(false);
+            return true;
+          } catch (error) {
+            console.error("ゲーム参加更新エラー:", error);
+            throw error;
           }
-        ];
+        };
         
-        await updateDoc(gameRef, {
-          players: updatedPlayers
-        });
-        
-        setGameId(gameToJoin.id);
-        setIsHost(false);
-        return true;
+        // Firestoreのセキュリティルールの現状に基づいてゲーム参加処理
+        try {
+          return await joinGameFunction();
+        } catch (error) {
+          // エラーログ
+          console.error("ゲーム参加エラー詳細:", error);
+          setError(`ゲーム参加エラー: ${error.message}。権限が不足しています。`);
+          return false;
+        }
       }
       return false;
     } catch (error) {
@@ -428,8 +445,8 @@ export function GameProvider({ children }) {
           // 狐/露出狂の特殊条件チェック
           if (targetPlayer.role === 'fox') {
             specialResult = {
-              type: 'foxWin',
-              message: '狐が占われました！狐の勝利です。'
+              type: 'foxLoss',
+              message: '狐が占われました！狐の敗北です。'
             };
           } else if (targetPlayer.role === 'exposer') {
             specialResult = {
@@ -458,8 +475,8 @@ export function GameProvider({ children }) {
           // 狐/露出狂の特殊条件チェック
           if (targetPlayer.role === 'fox') {
             specialResult = {
-              type: 'foxWin',
-              message: '狐が護衛されました！狐の勝利です。'
+              type: 'foxLoss',
+              message: '狐が護衛されました！狐の敗北です。'
             };
           } else if (targetPlayer.role === 'exposer') {
             specialResult = {
@@ -511,8 +528,8 @@ export function GameProvider({ children }) {
               message: specialResult.message,
               winnerIds: specialResult.type === 'exposerWin' 
                 ? [playerId, targetId] 
-                : specialResult.type === 'foxWin'
-                  ? [targetId]
+                : specialResult.type === 'foxLoss'
+                  ? []
                   : []
             }
           });

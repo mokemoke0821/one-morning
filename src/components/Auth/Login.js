@@ -36,38 +36,47 @@ function Login() {
         <div className="game-rules">
           <h2 className="rules-title">ワンモーニング人狼のルール</h2>
           <ul className="rules-list">
-            <li><strong>ゲームの目的:</strong> 自分の陣営を勝利に導くため議論と推理を駆使する</li>
-            
-            <li><strong>ゲームの流れ:</strong>
-              <ol>
-                <li>各プレイヤーにランダムで役職が配布される</li>
-                <li>役職カミングアウト(CO)と能力使用の議論（約2分）</li>
-                <li>投票で最も疑わしいプレイヤーを追放</li>
-                <li>追放された役職で勝敗が決まる</li>
-              </ol>
-            </li>
-            
-            <li><strong>役職:</strong>
+            <li><strong>特徴:</strong>
               <ul>
-                <li><strong>村人陣営</strong>: 正直に役職COする（占い師/護衛/霊媒師）</li>
-                <li><strong>人狼陣営</strong>: 村人陣営の役職になりすまし、村人たちを欺く。投票で村人を追放させれば勝利。</li>
-                <li><strong>第三陣営</strong>: 
-                  <ul>
-                    <li>狐: 占い師や護衛のターゲットになると即座に勝利</li>
-                    <li>露出狂: 占い師や護衛のターゲットになると同時に即座に勝利</li>
-                  </ul>
-                </li>
+                <li><strong>夜時間なし!</strong> 議論中にCOして相手のカードを見る1日完結型人狼ゲーム</li>
+                <li><strong>議論時間2分</strong>で手軽に遊べる、カードを使った正体隠匿ゲーム</li>
+                <li>各プレイヤーは役職カードを1枚引き、余ったカードは中央に置かれます</li>
               </ul>
             </li>
             
-            <li><strong>能力:</strong>
+            <li><strong>チームと役職:</strong>
               <ul>
-                <li><strong>占い師</strong>: 未COプレイヤーの役職を確認</li>
-                <li><strong>護衛</strong>: すでにCOしたプレイヤーの役職を確認</li>
-                <li><strong>霊媒師</strong>: 余った役職カードを1枚確認</li>
+                <li><strong>むらびとチーム</strong>: むらびと、うらないし(占い師)、ごえい(護衛)、れいばいし(霊媒師)</li>
+                <li><strong>おおかみチーム</strong>: おおかみ</li>
+                <li><strong>きつねチーム</strong>: きつね</li>
+                <li><strong>関係ないやつら</strong>: ろしゅつきょう(露出狂)、みてはいけないもの</li>
+              </ul>
+            </li>
+            
+            <li><strong>CO(役職宣言)ルール:</strong>
+              <ul>
+                <li><strong>むらびとチーム</strong>: 必ず本当の役職をCOする(嘘つき禁止)</li>
+                <li><strong>おおかみ/きつね/ろしゅつきょう</strong>: 「おおかみ」「きつね」「関係ないやつら」の中から1つを選んでCO</li>
+              </ul>
+            </li>
+            
+            <li><strong>能力(COした後に使用):</strong>
+              <ul>
+                <li><strong>うらないし</strong>: まだCOしていないプレイヤー1人のカードを確認</li>
+                <li><strong>ごえい</strong>: すでにCOしたプレイヤー1人のカードを確認</li>
+                <li><strong>れいばいし</strong>: 中央に置かれたカード1枚を確認</li>
+              </ul>
+            </li>
+            
+            <li><strong>特殊条件:</strong>
+              <ul>
+                <li><strong>きつね</strong>: うらないし/ごえいに見られると即敗北</li>
+                <li><strong>ろしゅつきょう</strong>: うらないし/ごえいに見られると見た人と同時勝利</li>
+                <li><strong>みてはいけないもの</strong>: れいばいしに中央カードとして見られると議論終了</li>
               </ul>
             </li>
           </ul>
+          <p className="text-xs mt-2 text-center">詳細なルールは<a href="https://puzzliar.com/onemorning" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">公式サイト</a>をご覧ください</p>
         </div>
         
         <div className="input-group">

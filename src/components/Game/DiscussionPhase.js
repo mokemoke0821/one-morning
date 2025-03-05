@@ -218,28 +218,82 @@ function DiscussionPhase() {
           )}
         </p>
         
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {/* 宣言できる役職一覧 */}
-          {['villager', 'seer', 'guard', 'medium'].map(role => (
-            <div 
-              key={role}
-              className={`p-3 border rounded-md cursor-pointer transition-colors ${
-                selectedRole === role 
-                  ? 'border-blue-500 bg-blue-50' 
-                  : 'border-gray-200 hover:border-blue-300'
-              }`}
-              onClick={() => setSelectedRole(role)}
-            >
-              <div className="font-medium text-center mb-1">{roleInfo[role]?.name}</div>
-              <div className="text-center text-2xl">{
-                role === 'villager' ? '👨‍🌾' : 
-                role === 'seer' ? '🔮' : 
-                role === 'guard' ? '🛡️' : 
-                role === 'medium' ? '📿' : '❓'
-              }</div>
+        {/* 村人チーム（正直にCO）用の選択肢 */}
+        {['villager', 'seer', 'guard', 'medium'].includes(myPlayer?.role) && (
+          <div>
+            <h3 className="font-medium mb-2 text-blue-600">あなたは村人チームです。正直に役職をCOしてください：</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <div 
+                key={myPlayer.role}
+                className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                  selectedRole === myPlayer.role 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-200 hover:border-blue-300'
+                }`}
+                onClick={() => setSelectedRole(myPlayer.role)}
+              >
+                <div className="font-medium text-center mb-1">{roleInfo[myPlayer.role]?.name}</div>
+                <div className="text-center text-2xl">{
+                  myPlayer.role === 'villager' ? '👨‍🌾' : 
+                  myPlayer.role === 'seer' ? '🔮' : 
+                  myPlayer.role === 'guard' ? '🛡️' : 
+                  myPlayer.role === 'medium' ? '📿' : '❓'
+                }</div>
+              </div>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
+        
+        {/* 人狼/きつね/ろしゅつきょう用の選択肢 */}
+        {['werewolf', 'fox', 'exposer'].includes(myPlayer?.role) && (
+          <div>
+            <h3 className="font-medium mb-2 text-red-600">以下の役職から1つを選んでCOしてください：</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {['werewolf', 'fox', 'exposer'].map(role => (
+                <div 
+                  key={role}
+                  className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                    selectedRole === role 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 hover:border-red-300'
+                  }`}
+                  onClick={() => setSelectedRole(role)}
+                >
+                  <div className="font-medium text-center mb-1">{roleInfo[role]?.name}</div>
+                  <div className="text-center text-2xl">{
+                    role === 'werewolf' ? '🐺' : 
+                    role === 'fox' ? '🦊' : 
+                    role === 'exposer' ? '👀' : '❓'
+                  }</div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 text-sm text-gray-600">
+              または村人チームの役職を選択（騙り）:
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+              {['villager', 'seer', 'guard', 'medium'].map(role => (
+                <div 
+                  key={role}
+                  className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                    selectedRole === role 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-200 hover:border-blue-300'
+                  }`}
+                  onClick={() => setSelectedRole(role)}
+                >
+                  <div className="font-medium text-center mb-1">{roleInfo[role]?.name}</div>
+                  <div className="text-center text-xl">{
+                    role === 'villager' ? '👨‍🌾' : 
+                    role === 'seer' ? '🔮' : 
+                    role === 'guard' ? '🛡️' : 
+                    role === 'medium' ? '📿' : '❓'
+                  }</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         
         {/* 選択中の役職説明 */}
         {selectedRole && (

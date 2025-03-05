@@ -407,7 +407,7 @@ function NightPhase() {
   return (
     <div className="container mx-auto p-4">
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold text-center mb-6">夜のフェーズ</h1>
+        <h1 className="text-2xl font-bold text-center mb-6">役職確認フェーズ</h1>
         
         {/* 現在のステップに応じた表示 */}
         {currentStep === 'viewRole' && renderRoleView()}
