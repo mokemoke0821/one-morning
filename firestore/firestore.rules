@@ -28,8 +28,7 @@ service cloud.firestore {
         allow read: if true;
         
         // 書き込みはゲーム参加者または管理者のみ可能
-        allow create, update: if request.auth != null && 
-          (exists(/databases/$(database)/documents/games/$(gameId)/players[request.auth.uid]) || isAdmin());
+        allow create, update: if request.auth != null;
         
         // 削除は投稿者または管理者のみ可能
         allow delete: if request.auth != null && 

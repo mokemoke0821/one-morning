@@ -65,6 +65,7 @@ function ChatBox({ gameId }) {
       });
       
       setNewMessage('');
+      console.log('メッセージを送信しました:', newMessage);
     } catch (error) {
       console.error('メッセージ送信エラー:', error);
     }

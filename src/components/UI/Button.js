@@ -1,4 +1,5 @@
 import React from 'react';
+// デバッグ用コメントを追加
 
 function Button({ 
   children, 
