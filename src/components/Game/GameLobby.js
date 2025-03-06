@@ -2,20 +2,27 @@ import React, { useState } from 'react';
 import Button from '../UI/Button';
 import { useGame } from '../../contexts/GameContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import ChatBox from '../Chat/ChatBox';
+import AdminPanel from '../Admin/AdminPanel';
 
 function GameLobby() {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { 
-    isHost, 
+    isHost,
+    isAdmin, 
     players, 
     availableGames,
     roleDistribution,
+    gameId,
     error,
     setError,
     createGame,
     joinGame,
     leaveGame,
-    startGame
+    startGame,
+    adminDeleteGame
   } = useGame();
   
   const [playerName, setPlayerName] = useState(localStorage.getItem('playerName') || '');
@@ -46,7 +53,20 @@ function GameLobby() {
   
   // ロビーを離れる
   const handleLeaveGame = async () => {
-    await leaveGame();
+    console.log("ロビーを離れるボタンがクリックされました");
+    try {
+      const result = await leaveGame();
+      if (result) {
+        console.log("ロビーを離れる処理が成功しました。ログイン画面にリダイレクトします。");
+        navigate('/');  // メイン画面へリダイレクト
+      } else {
+        console.error("ロビーを離れる処理に失敗しました");
+        setError("ロビーを離れることができませんでした。もう一度お試しください。");
+      }
+    } catch (error) {
+      console.error("ロビーを離れるエラー:", error);
+      setError(`エラーが発生しました: ${error.message}`);
+    }
   };
   
   // ゲーム開始
@@ -55,8 +75,28 @@ function GameLobby() {
       setError('ゲームを開始するには最低4人のプレイヤーが必要です');
       return;
     }
+
+    if (players.length > 8) {
+      setError('プレイヤー数が多すぎます。最大8人までプレイできます');
+      return;
+    }
     
     await startGame();
+  };
+  
+  // 管理者によるゲーム削除
+  const handleAdminDeleteGame = async (gameId) => {
+    if (!isAdmin) {
+      setError('管理者権限がありません');
+      return;
+    }
+    
+    if (window.confirm('このゲームを削除しますか？この操作は元に戻せません。')) {
+      const result = await adminDeleteGame(gameId);
+      if (result) {
+        console.log(`ゲームID: ${gameId} が管理者により削除されました`);
+      }
+    }
   };
   
   return (
@@ -84,7 +124,7 @@ function GameLobby() {
           {!players.length > 0 && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                プレイヤー数
+                プレイヤー数（4～8人）
               </label>
               <select
                 value={playerCount}
@@ -96,10 +136,6 @@ function GameLobby() {
                 <option value="6">6人</option>
                 <option value="7">7人</option>
                 <option value="8">8人</option>
-                <option value="9">9人</option>
-                <option value="10">10人</option>
-                <option value="11">11人</option>
-                <option value="12">12人</option>
               </select>
               
               {/* 役職配分の表示 */}
@@ -137,8 +173,14 @@ function GameLobby() {
                 onClick={handleLeaveGame}
                 variant="danger"
                 fullWidth
+                className="hover:bg-red-800 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
               >
-                ロビーを離れる
+                <span className="flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  ロビーを離れる
+                </span>
               </Button>
             </div>
           )}
@@ -177,9 +219,11 @@ function GameLobby() {
                     onClick={handleStartGame}
                     variant="success"
                     fullWidth
-                    disabled={players.length < 4}
+                    disabled={players.length < 4 || players.length > 8}
                   >
-                    ゲームを開始する {players.length < 4 && `(あと${4-players.length}人必要)`}
+                    ゲームを開始する 
+                    {players.length < 4 && `(あと${4-players.length}人必要)`}
+                    {players.length > 8 && `(プレイヤー数が多すぎます)`}
                   </Button>
                 </div>
               )}
@@ -214,7 +258,7 @@ function GameLobby() {
                           variant="outline"
                           size="sm"
                           fullWidth
-                          disabled={game.players.length >= game.playerCount}
+                          disabled={game.players.length >= game.playerCount || game.players.length >= 8}
                         >
                           参加する
                         </Button>
@@ -232,6 +276,59 @@ function GameLobby() {
           )}
         </div>
       </div>
+      
+      {/* 管理者機能 */}
+      {isAdmin && (
+        <>
+          {/* 管理者ゲーム削除ボタン表示 */}
+          {availableGames && availableGames.length > 0 && (
+            <div className="mt-6 bg-white p-4 rounded-lg shadow-md">
+              <h2 className="text-xl font-bold mb-4">ゲーム管理</h2>
+              <div className="space-y-3">
+                {availableGames.map((game) => {
+                  const hostPlayer = game.players.find(p => p.isHost);
+                  return (
+                    <div key={game.id} className="border border-gray-200 rounded-md p-3 hover:border-red-300 bg-gray-50">
+                      <div className="flex justify-between items-center mb-2">
+                        <div>
+                          <span className="font-medium">ゲームID: {game.id}</span>
+                          <div className="text-sm text-gray-500">ホスト: {hostPlayer?.name || '不明'}</div>
+                        </div>
+                        <span className="text-sm text-gray-500">
+                          {game.players?.length || 0}/{game.playerCount}人
+                        </span>
+                      </div>
+                      <Button
+                        onClick={() => handleAdminDeleteGame(game.id)}
+                        variant="danger"
+                        size="sm"
+                        fullWidth
+                      >
+                        <span className="flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          管理者権限で削除
+                        </span>
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          
+          {/* 管理者パネル - 参加中のゲームに対する操作 */}
+          {gameId && <AdminPanel gameId={gameId} />}
+        </>
+      )}
+      
+      {/* チャットボックス（参加中のゲームがある場合のみ表示） */}
+      {gameId && players.length > 0 && (
+        <div className="mt-6">
+          <ChatBox gameId={gameId} />
+        </div>
+      )}
       
       {/* エラーメッセージ */}
       {error && (

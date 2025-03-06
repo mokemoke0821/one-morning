@@ -1,6 +1,13 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 管理者権限の判定関数
+    function isAdmin() {
+      return request.auth != null &&
+        (request.auth.uid == "CXL3ZD0ZfXfbNlTHHFMdIMcT9Tk1" || request.auth.token.admin == true);
+    }
+    
     // ゲームドキュメント
     match /games/{gameId} {
       // 誰でも読み取り可能（公開ゲーム一覧表示のため）
@@ -9,22 +16,30 @@ service cloud.firestore {
       // 新規ゲーム作成は認証済みユーザーのみ可能
       allow create: if request.auth != null;
       
-      // 更新はホストまたはゲームに参加しているプレイヤーのみ可能
-      allow update: if request.auth != null && (
-        // ホストの場合
-        resource.data.hostId == request.auth.uid ||
-        // ゲーム参加者の場合
-        exists(/databases/$(database)/documents/games/$(gameId)) &&
-        getAfter(/databases/$(database)/documents/games/$(gameId)).data.players.hasAny([{'id': request.auth.uid}])
-      );
+      // 更新は認証済みユーザーなら誰でも可能（ゲーム参加のため）
+      allow update: if request.auth != null;
       
-      // 削除はホストのみ可能
-      allow delete: if request.auth != null && resource.data.hostId == request.auth.uid;
+      // 削除はホストまたは管理者のみ可能
+      allow delete: if request.auth != null && (resource.data.hostId == request.auth.uid || isAdmin());
+      
+      // チャットメッセージサブコレクション
+      match /chatMessages/{messageId} {
+        // 読み取りは誰でも可能
+        allow read: if true;
+        
+        // 書き込みはゲーム参加者または管理者のみ可能
+        allow create, update: if request.auth != null && 
+          (exists(/databases/$(database)/documents/games/$(gameId)/players[request.auth.uid]) || isAdmin());
+        
+        // 削除は投稿者または管理者のみ可能
+        allow delete: if request.auth != null && 
+          (resource.data.senderUid == request.auth.uid || isAdmin());
+      }
     }
     
     // その他のコレクションはデフォルトで拒否
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -332,8 +332,16 @@ function NightPhase() {
               >
                 <div className="font-medium">{player.name}</div>
                 {player.roleClaim && (
-                  <div className="text-sm text-gray-500">
-                    CO: {roleInfo[player.roleClaim]?.name || player.roleClaim}
+                  <div className={`text-sm px-2 py-1 rounded mt-1 flex items-center ${
+                    player.roleClaim === 'werewolf' ? 'bg-red-50 text-red-700' :
+                    player.roleClaim === 'fox' ? 'bg-orange-50 text-orange-700' :
+                    player.roleClaim === 'exposer' ? 'bg-purple-50 text-purple-700' :
+                    player.roleClaim === 'seer' ? 'bg-blue-50 text-blue-700' :
+                    player.roleClaim === 'guard' ? 'bg-indigo-50 text-indigo-700' :
+                    player.roleClaim === 'medium' ? 'bg-cyan-50 text-cyan-700' :
+                    'bg-green-50 text-green-700' // villager
+                  }`}>
+                    <span className="mr-1 font-medium">CO:</span> {roleInfo[player.roleClaim]?.name || player.roleClaim}
                   </div>
                 )}
               </div>

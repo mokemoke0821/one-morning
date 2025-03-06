@@ -21,11 +21,33 @@ export function useGame() {
 }
 
 export function GameProvider({ children }) {
+  // 管理者権限を持つユーザーIDのリスト
+  const ADMIN_USER_IDS = [
+    'CXL3ZD0ZfXfbNlTHHFMdIMcT9Tk1', // 特定のユーザーIDをここに追加
+  ];
+  
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [gameId, setGameId] = useState(null);
-  const [isHost, setIsHost] = useState(false);
+  const [gameId, setGameId] = useState(() => {
+    return sessionStorage.getItem('currentGameId') || null;
+  });
+  const [isAdmin, setIsAdmin] = useState(() => {
+    // 現在のユーザーが管理者リストに含まれているかチェック
+    return currentUser ? ADMIN_USER_IDS.includes(currentUser.uid) : false;
+  });
+  const [isHost, setIsHost] = useState(() => {
+    return sessionStorage.getItem('isGameHost') === 'true';
+  });
+
+  // 現在のユーザーが管理者かどうかを確認
+  useEffect(() => {
+    if (currentUser) {
+      setIsAdmin(ADMIN_USER_IDS.includes(currentUser.uid));
+    } else {
+      setIsAdmin(false);
+    }
+  }, [currentUser, ADMIN_USER_IDS]);
   const [gameState, setGameState] = useState('setup'); // setup, lobby, night, day, result
   const [players, setPlayers] = useState([]);
   const [availableGames, setAvailableGames] = useState([]);
@@ -170,6 +192,10 @@ export function GameProvider({ children }) {
         }]
       });
       
+      // ゲーム情報をセッションストレージに保存
+      sessionStorage.setItem('currentGameId', gameRef.id);
+      sessionStorage.setItem('isGameHost', 'true');
+      
       setGameId(gameRef.id);
       setIsHost(true);
       setGameState('lobby');
@@ -232,6 +258,9 @@ export function GameProvider({ children }) {
             await updateDoc(gameRef, {
               players: updatedPlayers
             });
+            // ゲーム情報をセッションストレージに保存
+            sessionStorage.setItem('currentGameId', gameToJoin.id);
+            sessionStorage.setItem('isGameHost', 'false');
             
             setGameId(gameToJoin.id);
             setIsHost(false);
@@ -264,29 +293,58 @@ export function GameProvider({ children }) {
     if (!gameId || !currentUser) return false;
     
     try {
+      console.log(`ゲーム離脱処理を開始します。gameId: ${gameId}, userId: ${currentUser.uid}`);
       const gameRef = doc(db, 'games', gameId);
       const gameSnap = await getDoc(gameRef);
       
       if (gameSnap.exists()) {
         const gameData = gameSnap.data();
+        console.log(`ゲームデータを取得しました。hostId: ${gameData.hostId}`);
         
         // ホストの場合はゲームを削除
         if (gameData.hostId === currentUser.uid) {
-          await deleteDoc(gameRef);
+          console.log(`ホストユーザーがゲームを離れました。ゲームを削除します: ${gameId}`);
+          try {
+            await deleteDoc(gameRef);
+            console.log("ゲームドキュメントの削除に成功しました");
+          } catch (deleteError) {
+            console.error("ゲーム削除エラー詳細:", deleteError);
+            throw new Error(`ホストによるゲーム削除に失敗しました: ${deleteError.message}`);
+          }
         } else {
           // ホストでない場合はプレイヤーリストから自分を削除
+          console.log(`非ホストユーザーがゲームを離れました。プレイヤーリストを更新します`);
           const updatedPlayers = gameData.players.filter(player => player.id !== currentUser.uid);
-          await updateDoc(gameRef, {
-            players: updatedPlayers
-          });
+          
+          // もしプレイヤーが0人になるなら、ゲームを削除する
+          if (updatedPlayers.length === 0) {
+            console.log("プレイヤーがいなくなったため、ゲームを削除します: ", gameId);
+            await deleteDoc(gameRef);
+          } else {
+            // そうでなければプレイヤーリストを更新
+            await updateDoc(gameRef, {
+              players: updatedPlayers,
+              // 最終更新時間を記録（将来的な自動クリーンアップのため）
+              lastActiveTime: serverTimestamp()
+            });
+          }
         }
+      } else {
+        console.log(`ゲームが見つかりません: ${gameId}`);
       }
+      
+      // セッションストレージからゲーム情報を削除
+      console.log("セッションストレージからゲーム情報を削除します");
+      sessionStorage.removeItem('currentGameId');
+      sessionStorage.removeItem('isGameHost');
       
       setGameId(null);
       setIsHost(false);
       setGameState('setup');
+      console.log("ゲーム離脱処理が完了しました");
       return true;
     } catch (error) {
+      console.error("ゲーム離脱処理中にエラーが発生しました:", error);
       setError(`ゲーム退出エラー: ${error.message}`);
       return false;
     }
@@ -722,6 +780,229 @@ export function GameProvider({ children }) {
       return false;
     }
   };
+  
+  // 管理者がゲームを削除する
+  const adminDeleteGame = async (targetGameId) => {
+    if (!isAdmin) {
+      setError('管理者権限がありません');
+      return false;
+    }
+    
+    try {
+      const gameRef = doc(db, 'games', targetGameId);
+      await deleteDoc(gameRef);
+      console.log(`管理者権限でゲーム削除: ${targetGameId}`);
+      return true;
+    } catch (error) {
+      setError(`ゲーム削除エラー: ${error.message}`);
+      return false;
+    }
+  };
+  
+  // ホストがゲームを強制終了する
+  const forceEndGame = async () => {
+    if (!gameId || !isHost) {
+      setError('ホスト権限がありません');
+      return false;
+    }
+    
+    try {
+      const gameRef = doc(db, 'games', gameId);
+      await updateDoc(gameRef, {
+        status: 'forceEnded',
+        result: {
+          type: 'forceEnded',
+          message: 'ゲームがホストにより強制終了されました。'
+        }
+      });
+      return true;
+    } catch (error) {
+      setError(`ゲーム強制終了エラー: ${error.message}`);
+      return false;
+    }
+  };
+
+  // 管理者用メソッド: テストユーザー追加
+  const adminAddTestUsers = async (gameId, count = 1, forcedRoles = []) => {
+    if (!isAdmin) {
+      setError('管理者権限がありません');
+      return false;
+    }
+    
+    try {
+      const gameRef = doc(db, 'games', gameId);
+      const gameSnap = await getDoc(gameRef);
+      
+      if (!gameSnap.exists()) {
+        setError('ゲームが見つかりません');
+        return false;
+      }
+      
+      const gameData = gameSnap.data();
+      let updatedPlayers = [...gameData.players];
+      
+      // テストユーザーを生成
+      for (let i = 0; i < count; i++) {
+        const testUserId = `test_${Date.now()}_${i}`;
+        const testUser = {
+          id: testUserId,
+          name: `TestUser_${i + 1}`,
+          role: '',
+          roleClaim: '',
+          isAlive: true,
+          isHost: false,
+          hasUsedAbility: false
+        };
+        
+        // 指定された役職がある場合は設定
+        if (forcedRoles.length > i) {
+          testUser.role = forcedRoles[i];
+        }
+        
+        updatedPlayers.push(testUser);
+      }
+      
+      await updateDoc(gameRef, {
+        players: updatedPlayers
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('テストユーザー追加エラー:', error);
+      setError(`テストユーザー追加エラー: ${error.message}`);
+      return false;
+    }
+  };
+  
+  // 管理者用メソッド: フェーズや時間を強制変更
+  const adminForcePhaseChange = async (gameId, newPhase = null, additionalData = {}) => {
+    if (!isAdmin) {
+      setError('管理者権限がありません');
+      return false;
+    }
+    
+    try {
+      const gameRef = doc(db, 'games', gameId);
+      const gameSnap = await getDoc(gameRef);
+      
+      if (!gameSnap.exists()) {
+        setError('ゲームが見つかりません');
+        return false;
+      }
+      
+      const updateData = { ...additionalData };
+      
+      // フェーズ変更が指定されている場合
+      if (newPhase) {
+        updateData.status = newPhase;
+      }
+      
+      await updateDoc(gameRef, updateData);
+      return true;
+    } catch (error) {
+      console.error('フェーズ変更エラー:', error);
+      setError(`フェーズ変更エラー: ${error.message}`);
+      return false;
+    }
+  };
+  
+  // 管理者用メソッド: 役職シャッフル
+  const adminShuffleRoles = async (gameId) => {
+    if (!isAdmin) {
+      setError('管理者権限がありません');
+      return false;
+    }
+    
+    try {
+      const gameRef = doc(db, 'games', gameId);
+      const gameSnap = await getDoc(gameRef);
+      
+      if (!gameSnap.exists()) {
+        setError('ゲームが見つかりません');
+        return false;
+      }
+      
+      const gameData = gameSnap.data();
+      let playersList = [...gameData.players];
+      
+      // 役職の割り当て（startGameと同様の処理）
+      const roles = [];
+      const distribution = roleDistribution[playersList.length];
+      
+      if (!distribution) {
+        setError('現在のプレイヤー数に対応する役職配分が設定されていません');
+        return false;
+      }
+      
+      for (const [role, count] of Object.entries(distribution)) {
+        for (let i = 0; i < count; i++) {
+          roles.push(role);
+        }
+      }
+      
+      // 役職をシャッフル
+      for (let i = roles.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [roles[i], roles[j]] = [roles[j], roles[i]];
+      }
+      
+      // 中央カードの設定
+      const centerCardRoles = roles.slice(playersList.length);
+      
+      // プレイヤーに役職を割り当て
+      playersList = playersList.map((player, index) => ({
+        ...player,
+        role: roles[index] || 'villager',
+      }));
+      
+      await updateDoc(gameRef, {
+        players: playersList,
+        centerCards: centerCardRoles
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('役職シャッフルエラー:', error);
+      setError(`役職シャッフルエラー: ${error.message}`);
+      return false;
+    }
+  };
+  
+  // 管理者用メソッド: 特定プレイヤーの役職変更
+  const adminSetPlayerRole = async (gameId, playerId, newRole) => {
+    if (!isAdmin) {
+      setError('管理者権限がありません');
+      return false;
+    }
+    
+    try {
+      const gameRef = doc(db, 'games', gameId);
+      const gameSnap = await getDoc(gameRef);
+      
+      if (!gameSnap.exists()) {
+        setError('ゲームが見つかりません');
+        return false;
+      }
+      
+      const gameData = gameSnap.data();
+      const updatedPlayers = gameData.players.map(player => {
+        if (player.id === playerId) {
+          return { ...player, role: newRole };
+        }
+        return player;
+      });
+      
+      await updateDoc(gameRef, {
+        players: updatedPlayers
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('役職変更エラー:', error);
+      setError(`役職変更エラー: ${error.message}`);
+      return false;
+    }
+  };
 
   const value = {
     // 状態
@@ -729,6 +1010,7 @@ export function GameProvider({ children }) {
     error,
     gameId,
     isHost,
+    isAdmin,
     gameState,
     players,
     availableGames,
@@ -754,6 +1036,14 @@ export function GameProvider({ children }) {
     calculateResults,
     resetGame,
     updateGameData,
+    adminDeleteGame,
+    forceEndGame,
+    
+    // 管理者用メソッド
+    adminAddTestUsers,
+    adminForcePhaseChange,
+    adminShuffleRoles,
+    adminSetPlayerRole,
     
     // エラー管理
     setError

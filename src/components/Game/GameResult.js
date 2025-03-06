@@ -33,13 +33,21 @@ function GameResult() {
         icon: '🎉',
         title: resultType === 'villagerWin' ? '村人陣営の勝利！' : '露出狂の勝利！'
       };
-    } else if (['werewolfWin', 'foxWin'].includes(resultType)) {
+    } else if (['werewolfWin'].includes(resultType)) {
       return {
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200',
         textColor: 'text-red-900',
-        icon: resultType === 'werewolfWin' ? '🐺' : '🦊',
-        title: resultType === 'werewolfWin' ? '人狼陣営の勝利！' : '狐の勝利！'
+        icon: '🐺',
+        title: '人狼陣営の勝利！'
+      };
+    } else if (resultType === 'foxLoss') {
+      return {
+        bgColor: 'bg-orange-50',
+        borderColor: 'border-orange-200',
+        textColor: 'text-orange-900',
+        icon: '🦊',
+        title: '狐の敗北！'
       };
     } else if (resultType === 'unknownLoss') {
       return {
@@ -48,6 +56,14 @@ function GameResult() {
         textColor: 'text-white',
         icon: '⚠️',
         title: '全員敗北...'
+      };
+    } else if (resultType === 'forceEnded') {
+      return {
+        bgColor: 'bg-yellow-50',
+        borderColor: 'border-yellow-300',
+        textColor: 'text-yellow-800',
+        icon: '🛑',
+        title: 'ゲーム強制終了'
       };
     } else {
       return {
@@ -66,8 +82,8 @@ function GameResult() {
     
     const resultType = gameResult.type;
     
-    // 特殊勝利条件
-    if (resultType === 'foxWin' && myPlayer.role === 'fox') return true;
+    // 特殊勝利条件 (狐は必ず敗北)
+    if (resultType === 'foxLoss' && myPlayer.role === 'fox') return false;
     if (resultType === 'exposerWin' && (gameResult.winnerIds?.includes(myPlayer.id))) return true;
     
     // 村人チーム勝利
@@ -84,13 +100,13 @@ function GameResult() {
   const renderRoleCards = () => {
     return (
       <div className="flex flex-wrap justify-center gap-3 my-6">
-        <div>
+        <div className="w-full">
           <h3 className="font-medium mb-2 text-center">プレイヤーの役職</h3>
-          <div className="flex flex-wrap justify-center gap-3">
+          <div className="flex flex-wrap justify-center gap-2 md:gap-3">
             {players.map(player => (
-              <div key={player.id} className="text-center">
+              <div key={player.id} className="text-center" style={{minWidth: '70px'}}>
                 <Card role={player.role} size="sm" />
-                <div className="mt-1 text-sm font-medium">{player.name}</div>
+                <div className="mt-1 text-sm font-medium truncate max-w-[80px]">{player.name}</div>
                 <div className="text-xs text-gray-500">{roleInfo[player.role]?.name || player.role}</div>
               </div>
             ))}
@@ -98,11 +114,11 @@ function GameResult() {
         </div>
         
         {centerCards && centerCards.length > 0 && (
-          <div className="mt-6">
+          <div className="mt-6 w-full">
             <h3 className="font-medium mb-2 text-center">中央カード</h3>
-            <div className="flex flex-wrap justify-center gap-3">
+            <div className="flex flex-wrap justify-center gap-2 md:gap-3">
               {centerCards.map((role, index) => (
-                <div key={index} className="text-center">
+                <div key={index} className="text-center" style={{minWidth: '70px'}}>
                   <Card role={role} size="sm" />
                   <div className="mt-1 text-xs text-gray-500">{roleInfo[role]?.name || role}</div>
                 </div>

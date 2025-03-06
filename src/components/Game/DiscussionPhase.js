@@ -5,6 +5,8 @@ import Button from '../UI/Button';
 import Timer from '../UI/Timer';
 import Modal, { ConfirmModal, AlertModal } from '../UI/Modal';
 import Card from '../UI/Card';
+import ChatBox from '../Chat/ChatBox';
+import AdminPanel from '../Admin/AdminPanel';
 
 function DiscussionPhase() {
   const { currentUser } = useAuth();
@@ -18,7 +20,8 @@ function DiscussionPhase() {
     updateGameData,
     declareRole,
     vote,
-    calculateResults
+    calculateResults,
+    forceEndGame
   } = useGame();
   
   const [showRoleDeclaration, setShowRoleDeclaration] = useState(false);
@@ -421,33 +424,61 @@ function DiscussionPhase() {
       </div>
       
       {isHost && (
-        <div className="flex justify-center space-x-2 mb-6">
-          {isTimerRunning ? (
-            <Button
-              onClick={() => handleTimerControl('pause')}
-              variant="warning"
-              size="sm"
-            >
-              一時停止
-            </Button>
-          ) : (
-            timer > 0 && (
+        <div className="mb-6">
+          <div className="flex justify-center space-x-2 mb-2">
+            {isTimerRunning ? (
               <Button
-                onClick={() => handleTimerControl('resume')}
-                variant="success"
+                onClick={() => handleTimerControl('pause')}
+                variant="warning"
                 size="sm"
               >
-                再開
+                一時停止
               </Button>
-            )
-          )}
-          <Button
-            onClick={() => handleTimerControl('skip')}
-            variant="danger"
-            size="sm"
-          >
-            スキップ
-          </Button>
+            ) : (
+              timer > 0 && (
+                <Button
+                  onClick={() => handleTimerControl('resume')}
+                  variant="success"
+                  size="sm"
+                >
+                  再開
+                </Button>
+              )
+            )}
+            <Button
+              onClick={() => handleTimerControl('skip')}
+              variant="danger"
+              size="sm"
+            >
+              スキップ
+            </Button>
+          </div>
+          
+          <div className="mt-2">
+            <Button
+              onClick={async () => {
+                if (window.confirm('本当にゲームを強制終了しますか？この操作は取り消せません。')) {
+                  try {
+                    await forceEndGame();
+                  } catch (error) {
+                    console.error('ゲーム強制終了エラー:', error);
+                    setAlertModal({
+                      isOpen: true,
+                      title: 'エラー',
+                      message: 'ゲームの強制終了に失敗しました。',
+                      variant: 'danger'
+                    });
+                  }
+                }
+              }}
+              variant="danger"
+              size="sm"
+              className="border-2 border-red-500"
+            >
+              ゲームを強制終了
+            </Button>
+            <p className="text-xs text-red-500 mt-1">※このボタンを押すとゲームが即座に終了します</p>
+          </div>
         </div>
       )}
       
@@ -495,8 +526,16 @@ function DiscussionPhase() {
               </div>
               
               {player.roleClaim ? (
-                <div className="mt-1 text-sm bg-green-50 text-green-700 px-2 py-1 rounded">
-                  CO: {roleInfo[player.roleClaim]?.name || player.roleClaim}
+                <div className={`mt-1 text-sm px-2 py-1 rounded flex items-center ${
+                  player.roleClaim === 'werewolf' ? 'bg-red-50 text-red-700' :
+                  player.roleClaim === 'fox' ? 'bg-orange-50 text-orange-700' :
+                  player.roleClaim === 'exposer' ? 'bg-purple-50 text-purple-700' :
+                  player.roleClaim === 'seer' ? 'bg-blue-50 text-blue-700' :
+                  player.roleClaim === 'guard' ? 'bg-indigo-50 text-indigo-700' :
+                  player.roleClaim === 'medium' ? 'bg-cyan-50 text-cyan-700' :
+                  'bg-green-50 text-green-700' // villager
+                }`}>
+                  <span className="mr-1 font-medium">CO:</span> {roleInfo[player.roleClaim]?.name || player.roleClaim}
                 </div>
               ) : (
                 <div className="mt-1 text-sm text-gray-500">未CO</div>
@@ -514,12 +553,23 @@ function DiscussionPhase() {
     </div>
   );
   
+  // ゲームルームとユーザー権限を取得
+  const { gameId, isAdmin } = useGame();
+
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 space-y-6">
+      {/* 管理者パネル */}
+      {isAdmin && <AdminPanel gameId={gameId} />}
+      
       <div className="bg-white rounded-lg shadow-md p-6">
         <h1 className="text-2xl font-bold text-center mb-6">昼のフェーズ</h1>
         
         {renderDiscussion()}
+        
+        {/* チャットボックス */}
+        <div className="mt-8">
+          <ChatBox gameId={gameId} />
+        </div>
         
         {/* モーダル */}
         {renderRoleDeclarationModal()}
